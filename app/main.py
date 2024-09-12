@@ -6,6 +6,7 @@ from typing import Annotated
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Path
 from pydantic import BaseModel, Field
+import asyncio
 
 import numpy
 
@@ -71,6 +72,8 @@ async def predict(
     model_name: Annotated[str, Path(regex=r"^(logistic_model|rf_model)$")],
     iris_data: IrisData,
 ):
+    await asyncio.sleep(5) # Mimic heavy workload.
+
     input_data = [
         [
             iris_data.sepal_length,
