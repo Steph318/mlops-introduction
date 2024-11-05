@@ -49,6 +49,7 @@ async def lifespan(app: FastAPI):
     # Clean up the ML models and release the resources
     ml_models.clear()
 
+
 app = FastAPI(lifespan=lifespan)
 
 @app.get("/")
