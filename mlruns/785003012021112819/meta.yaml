@@ -1,0 +1,6 @@
+artifact_location: mlflow-artifacts:/785003012021112819
+creation_time: 1730417641827
+experiment_id: '785003012021112819'
+last_update_time: 1730417641827
+lifecycle_stage: active
+name: MLflow Autologging Quickstart

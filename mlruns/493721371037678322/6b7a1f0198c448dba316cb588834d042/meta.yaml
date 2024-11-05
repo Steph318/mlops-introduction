@@ -1,0 +1,15 @@
+artifact_uri: mlflow-artifacts:/493721371037678322/6b7a1f0198c448dba316cb588834d042/artifacts
+end_time: 1730418839929
+entry_point_name: ''
+experiment_id: '493721371037678322'
+lifecycle_stage: active
+run_id: 6b7a1f0198c448dba316cb588834d042
+run_name: lyrical-zebra-192
+run_uuid: 6b7a1f0198c448dba316cb588834d042
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1730418839917
+status: 4
+tags: []
+user_id: ndjebayidamarisstephanie

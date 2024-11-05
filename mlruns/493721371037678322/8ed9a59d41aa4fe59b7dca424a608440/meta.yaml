@@ -1,0 +1,15 @@
+artifact_uri: mlflow-artifacts:/493721371037678322/8ed9a59d41aa4fe59b7dca424a608440/artifacts
+end_time: 1730419011336
+entry_point_name: ''
+experiment_id: '493721371037678322'
+lifecycle_stage: active
+run_id: 8ed9a59d41aa4fe59b7dca424a608440
+run_name: crawling-grub-697
+run_uuid: 8ed9a59d41aa4fe59b7dca424a608440
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1730419009154
+status: 3
+tags: []
+user_id: ndjebayidamarisstephanie

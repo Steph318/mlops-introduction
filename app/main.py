@@ -1,92 +1,116 @@
-import os
-import pickle
+from fastapi import FastAPI, HTTPException, Path
 from contextlib import asynccontextmanager
 from typing import Annotated
 
+import pickle
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Path
-from pydantic import BaseModel, Field
+import os
+from pydantic import BaseModel, Field 
+
 import asyncio
 
-import numpy
 
-load_dotenv('/Users/ndjebayidamarisstephanie/mlops-introduction/app/.env')
 
-ml_models = {}
+load_dotenv()
 
 
 class IrisData(BaseModel):
-    sepal_length: float = Field(
-        default=1.1, gt=0, lt=10, description="Sepal length is in range (0,10)"
-    )
-    sepal_width: float = Field(default=3.1, gt=0, lt=10)
-    petal_length: float = Field(default=2.1, gt=0, lt=10)
-    petal_width: float = Field(default=4.1, gt=0, lt=10)
+    sepal_length: float = Field(default=1.1, gt=0, lt=10, description="Sepal length is in range (0,10)")
+    sepal_width: float = Field(default=3.1, gt=0, lt=10, description="Sepal length is in range (0,10)")
+    petal_length: float = Field(default=2.1, gt=0, lt=10, description="Sepal length is in range (0,10)")
+    petal_width: float = Field(default=4.1, gt=0, lt=10, description="Sepal length is in range (0,10)")
 
 
+
+ml_models = {} # Global dictionary to hold the models.
 def load_model(path: str):
     model = None
     with open(path, "rb") as f:
         model = pickle.load(f)
     return model
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the ML model
-
-    # print(os.getenv("LOG"))
-
-    # ml_models["logistic_model"] = load_model(os.getenv("LOG_MODEL"))
+    # Load models when the app starts
+    ml_models["logistic_model"] = load_model(os.getenv("LOGISTIC_MODEL"))
     ml_models["rf_model"] = load_model(os.getenv("RF_MODEL"))
-    ml_models["logistic_model"] = load_model(os.getenv("LOG"))
-
 
     yield
+    # This code will be executed after the application finishes handling requests, right before the shutdown
     # Clean up the ML models and release the resources
     ml_models.clear()
 
-
-# Create a FastAPI instance
 app = FastAPI(lifespan=lifespan)
-
 
 @app.get("/")
 async def root():
-    return {"message": "Hello World"}
-
-
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy"}
+    return {"message": "Models loaded and FastAPI is ready!"}
 
 
 @app.get("/models")
 async def list_models():
+    # Return the list of available models' names
     return {"available_models": list(ml_models.keys())}
 
 
 @app.post("/predict/{model_name}")
-async def predict(
-    model_name: Annotated[str, Path(regex=r"^(logistic_model|rf_model)$")],
-    iris_data: IrisData,
-):
-    await asyncio.sleep(5) # Mimic heavy workload.
+async def predict(model_name: Annotated[str, Path(regex=r"^(logistic_model|rf_model)$")],
+                   iris: IrisData):
+    
+    # await asyncio.sleep(5) # Mimic heavy workload.
 
-    input_data = [
-        [
-            iris_data.sepal_length,
-            iris_data.sepal_width,
-            iris_data.petal_length,
-            iris_data.petal_width,
-        ]
-    ]
-
+    input_data = [[iris.sepal_length, iris.sepal_width, iris.petal_length, iris.petal_width]]
+    
     if model_name not in ml_models.keys():
-        raise HTTPException(status_code=404, detail="Model not found.")
-
-    model = ml_models[model_name]
-    prediction = model.predict(input_data)
+        raise HTTPException(status_code=404, detail="Model not found")
+    
+    ml_model = ml_models[model_name]
+    prediction = ml_model.predict(input_data)
 
     return {"model": model_name, "prediction": int(prediction[0])}
+
+
+
+
+# Cas d'utilisation plus courant et complet
+
+# from fastapi import FastAPI
+# from databases import Database
+# import aioredis
+
+# @asynccontextmanager
+# async def lifespan(app: FastAPI):
+#     # Initialisation
+#     # 1. Connexion à la base de données
+#     app.state.database = Database("postgresql://user:pass@localhost/db")
+#     await app.state.database.connect()
+    
+#     # 2. Connexion à Redis
+#     app.state.redis = await aioredis.create_redis_pool('redis://localhost')
+    
+#     # 3. Chargement des modèles ML
+#     app.state.ml_models = {
+#         'model1': load_model("path/to/model1"),
+#         'model2': load_model("path/to/model2")
+#     }
+    
+#     # 4. Initialisation du cache
+#     app.state.cache = {}
+
+#     yield  # L'application s'exécute
+
+#     # Nettoyage
+#     # 1. Fermeture de la base de données
+#     await app.state.database.disconnect()
+    
+#     # 2. Fermeture de Redis
+#     app.state.redis.close()
+#     await app.state.redis.wait_closed()
+    
+#     # 3. Nettoyage des modèles ML
+#     app.state.ml_models.clear()
+    
+#     # 4. Vidage du cache
+#     app.state.cache.clear()
+
+# app = FastAPI(lifespan=lifespan)

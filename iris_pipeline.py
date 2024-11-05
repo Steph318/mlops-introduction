@@ -1,4 +1,5 @@
-
+import mlflow
+import mlflow.sklearn
 import pandas as pd
 from sklearn.datasets import load_iris
 from sklearn.model_selection import train_test_split
@@ -6,32 +7,57 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 import matplotlib.pyplot as plt
 from sklearn.metrics import ConfusionMatrixDisplay
+from mlflow.models import infer_signature
 
 
 def load_dataset():
     iris = load_iris()
-    df = pd.DataFrame(iris.data, columns=iris.feature_names)
-    df['species'] = iris.target
-    df["species_name"] = df.apply(
-        lambda x: str(iris.target_names[int(x["species"])]), axis=1
+    X_train, X_test, y_train, y_test = train_test_split(
+        iris.data, iris.target, test_size=0.2, random_state=42
     )
-    return df
+    return X_train, X_test, y_train, y_test
 
-def train(df):
-         X_train, X_test, y_train, y_test = train_test_split(
-             df.iloc[:, :-1], df["species"], test_size=0.2, random_state=42
+
+def train_and_log_model(params):
+     X_train, X_test, y_train, y_test = load_dataset()
+
+     model = LogisticRegression(**params)
+
+     with mlflow.start_run():
+
+         model.fit(X_train, y_train)
+         accuracy = inference(model, X_test, y_test)
+
+         # Log the hyperparameters
+         mlflow.log_params(params)
+
+         # Log the loss metric
+         mlflow.log_metric("accuracy", accuracy)
+
+         # Set a tag that we can use to remind ourselves what this run was for
+         mlflow.set_tag("Training Info", "Basic LR model for iris data")
+
+         # Infer the model signature
+         signature = infer_signature(X_train, model.predict(X_train))
+
+         # Log the model
+         model_info = mlflow.sklearn.log_model(
+             sk_model=model,
+             artifact_path="model",
+             signature=signature,
+             input_example=X_train,
+             registered_model_name="tracking-quickstart",
          )
 
-         model = LogisticRegression(max_iter=200)
-         model.fit(X_train, y_train)
+     return model_info
 
-         return model, X_train, X_test, y_train, y_test
 
-def get_accuracy(model, X_test, y_test):
-    predictions = model.predict(X_test)
-    accuracy = accuracy_score(y_test, predictions)
+def inference(model, X_test, y_test):
+     predictions = model.predict(X_test)
+     accuracy = accuracy_score(y_test, predictions)
+     print(f"Accuracy of the model is: {accuracy}.")
 
-    return accuracy
+     return accuracy
 
 
 def plot_feature(df, feature):
@@ -67,12 +93,23 @@ def plot_model(model, X_test, y_test):
 
 
 if __name__ == "__main__":
-    iris_df = load_dataset()
-    model, X_train, X_test, y_train, y_test = train(iris_df)
-    accuracy = get_accuracy(model, X_test, y_test)
-    print(f"Accuracy: {accuracy:.2f}")
-    
+    # Set our tracking server uri for logging
+     mlflow.set_tracking_uri(uri="http://127.0.0.1:5000")
 
-    plot_feature(iris_df, "sepal length (cm)")
-    plot_features(iris_df)
-    plot_model(model, X_test, y_test)
+     # Create a new MLflow Experiment
+     mlflow.set_experiment("MLflow Quickstart")
+
+     # Define the model hyperparameters
+     params = {
+         "solver": "lbfgs",
+         "max_iter": 1000,
+         "multi_class": "auto",
+         "random_state": 8888,
+     }
+     model_info = train_and_log_model(params)
+
+     X_train, X_test, y_train, y_test = load_dataset()
+
+     # Load the model back for predictions as a generic Python Function model
+     loaded_model = mlflow.pyfunc.load_model(model_info.model_uri)
+     accuracy = inference(loaded_model, X_test, y_test)
