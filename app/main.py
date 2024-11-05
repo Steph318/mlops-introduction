@@ -1,11 +1,20 @@
-from fastapi import FastAPI, HTTPException, Path
+from fastapi import FastAPI, HTTPException, Path, BackgroundTasks
 from contextlib import asynccontextmanager
 from typing import Annotated
-
+import pandas as pd
 import pickle
 from dotenv import load_dotenv
 import os
 from pydantic import BaseModel, Field 
+from sklearn.datasets import load_iris
+
+from evidently.report import Report
+
+from evidently.metric_preset import DataQualityPreset
+from evidently.metric_preset import DataDriftPreset
+from fastapi.responses import HTMLResponse
+
+
 
 import asyncio
 
@@ -54,22 +63,86 @@ async def list_models():
 
 
 @app.post("/predict/{model_name}")
-async def predict(model_name: Annotated[str, Path(regex=r"^(logistic_model|rf_model)$")],
-                   iris: IrisData):
-    
-    # await asyncio.sleep(5) # Mimic heavy workload.
+async def predict(
+    model_name: Annotated[str, Path(pattern=r"^(logistic_model|rf_model)$")],
+    iris_data: IrisData,
+    background_tasks: BackgroundTasks,
+):
+    input_data = [
+        [
+            iris_data.sepal_length,
+            iris_data.sepal_width,
+            iris_data.petal_length,
+            iris_data.petal_width,
+        ]
+    ]
 
-    input_data = [[iris.sepal_length, iris.sepal_width, iris.petal_length, iris.petal_width]]
-    
     if model_name not in ml_models.keys():
-        raise HTTPException(status_code=404, detail="Model not found")
-    
-    ml_model = ml_models[model_name]
-    prediction = ml_model.predict(input_data)
+        raise HTTPException(status_code=404, detail="Model not found.")
+
+    model = ml_models[model_name]
+    prediction = model.predict(input_data)
+
+    background_tasks.add_task(log_data, input_data[0], int(prediction[0]))
 
     return {"model": model_name, "prediction": int(prediction[0])}
 
 
+
+
+def log_data(iris_data: list, prediction: int):
+    global DATA_LOG
+    iris_data.append(prediction)
+    DATA_LOG.append(iris_data)
+
+
+
+DATA_WINDOW_SIZE = 45
+
+def load_train_data():
+    iris = load_iris()
+    df = pd.DataFrame(iris.data, columns=iris.feature_names)
+    df["species"] = iris.target
+    return df
+
+
+# loads our latest predictions
+def load_last_predictions():
+    prediction_data = pd.DataFrame(
+        DATA_LOG[-DATA_WINDOW_SIZE:],
+        columns=[
+            "sepal length (cm)",
+            "sepal width (cm)",
+            "petal length (cm)",
+            "petal width (cm)",
+            "species",
+        ],
+    )
+    return prediction_data
+
+
+def generate_dashboard() -> str:
+    data_report = Report(
+        metrics=[
+            DataDriftPreset(),
+            DataQualityPreset(),
+        ],
+    )
+
+    reference_data = load_train_data()
+    current_data = load_last_predictions()
+
+    data_report.run(reference_data=reference_data, current_data=current_data)
+
+    return data_report.get_html()
+
+
+@app.get("/monitoring", tags=["Other"])
+def monitoring():
+    if len(DATA_LOG) == 0:
+        return {"msg": "No data."}
+    dashboard = generate_dashboard()
+    return HTMLResponse(dashboard)
 
 
 # Cas d'utilisation plus courant et complet
